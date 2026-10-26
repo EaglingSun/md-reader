@@ -1,0 +1,17 @@
+app:
+  name: md-reader
+  version: 1.0.0
+  license: GPL-3.0
+
+build:
+  target: windows
+  python: "3.13"
+  bundler: pyinstaller
+  installer: inno-setup-6
+
+associations:
+  - .md
+  - .markdown
+  - .yaml
+  - .yml
+  - .json

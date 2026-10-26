@@ -1,0 +1,59 @@
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: "Malgun Gothic", "맑은 고딕", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+#vditor {
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Vditor 내부 한글 가독성 보정 */
+.vditor-reset,
+.vditor-ir,
+.vditor-wysiwyg,
+.vditor-sv {
+  font-family: "Malgun Gothic", "맑은 고딕", "Segoe UI", -apple-system, sans-serif !important;
+  line-height: 1.7;
+}
+
+/* 다크 모드일 때 body 배경도 맞춰서 깜빡임 방지 */
+body.dark {
+  background: #1e1e1e;
+}
+
+/*
+ * YAML/JSON처럼 문서 전체가 단일 코드 펜스인 경우에만 코드블록의
+ * max-height를 풀어 외곽(Vditor) 스크롤이 받도록 한다.
+ * height/overflow는 건드리지 않아야 Vditor 내부 레이아웃이 깨지지 않음.
+ * `body.code-only` 토글은 editor.js의 loadContent 핸들러에서 관리한다.
+ */
+body.code-only .vditor-ir pre,
+body.code-only .vditor-ir pre code,
+body.code-only .vditor-reset pre,
+body.code-only .vditor-reset pre code {
+  max-height: none !important;
+}
+
+/* 원문 표시(YAML/JSON/TXT): 긴 줄은 가로 스크롤 대신 창 폭에서 줄바꿈.
+ * Vditor 줄 번호는 pre-wrap 이면 줄마다 높이를 재서 맞춘다(highlightRender). */
+body.code-only .vditor-reset pre code {
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * 표: Vditor 기본값은 셀을 white-space:nowrap 으로 묶어 넓은 표를 가로 스크롤로 만든다.
+ * 셀 줄바꿈만 풀면 표가 창 폭 안에 들어온다. 표 자체의 display:block + overflow:auto 는
+ * 그대로 두어, 열이 너무 많아 최소 폭으로도 안 들어가는 표만 스크롤로 남긴다.
+ */
+.vditor-reset table td,
+.vditor-reset table th {
+  white-space: normal;
+  word-break: keep-all;     /* 한글은 어절 단위로 */
+  overflow-wrap: anywhere;  /* 띄어쓰기 없는 긴 URL·경로도 칸 안에서 끊음 */
+  min-width: 4em;           /* 짧은 열이 한 글자씩 세로로 쪼개지지 않게 */
+}
