@@ -98,3 +98,103 @@ body.read-only .vditor-toolbar {
   overflow-wrap: anywhere;  /* 띄어쓰기 없는 긴 URL·경로도 칸 안에서 끊음 */
   min-width: 4em;           /* 짧은 열이 한 글자씩 세로로 쪼개지지 않게 */
 }
+
+/*
+ * 인쇄(PDF 내보내기 · printToPdf): 화면에서는 문서가 창 높이 한 장에 갇혀 있다.
+ *   ① html · body 100% + overflow:hidden, #vditor 100vh, Vditor 루트 inline height:100%
+ *   ② 본문이 스크롤 상자 안에 있다 (.vditor-reset overflow:auto · IR 의 pre.vditor-reset height:100%)
+ *   ③ 코드 블록마다 Vditor 가 inline max-height(창 높이 - 40px) + overflow:auto 를 건다
+ * Chromium 은 스크롤 상자 안을 쪽으로 나누지 않아 첫 화면만 PDF 에 들어갔다(v1.1.0 부터).
+ * 인쇄 때만 높이 · 스크롤을 풀어 문서 흐름대로 쪽을 나눈다. 실측: tests/manual/check_pdf_export.py
+ */
+@media print {
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  #vditor,
+  .vditor {
+    height: auto !important;
+  }
+  .vditor-reset,
+  .vditor-ir pre.vditor-reset,
+  .vditor-wysiwyg pre.vditor-reset,
+  .vditor-sv,
+  .vditor-preview {
+    height: auto !important;
+    overflow: visible !important;
+  }
+  .vditor-reset pre > code {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /*
+   * 편집 툴바(글자 수 포함) · 코드 블록 복사 버튼 · 제목 표지(H1~H6)는 종이에 필요 없다.
+   * 복사 버튼은 pre:hover 로만 보여서, 내보낼 때 마우스가 코드 블록 위에 있으면 첫 줄 끝을 가린 채 찍혔다.
+   * 제목 표지는 Vditor 도 좁은 화면에서 끈다.
+   */
+  .vditor-toolbar,
+  .vditor-copy {
+    display: none !important;
+  }
+  .vditor-ir .vditor-reset > h1:before,
+  .vditor-ir .vditor-reset > h2:before,
+  .vditor-ir .vditor-reset > h3:before,
+  .vditor-ir .vditor-reset > h4:before,
+  .vditor-ir .vditor-reset > h5:before,
+  .vditor-ir .vditor-reset > h6:before,
+  .vditor-wysiwyg > .vditor-reset > h1:before,
+  .vditor-wysiwyg > .vditor-reset > h2:before,
+  .vditor-wysiwyg > .vditor-reset > h3:before,
+  .vditor-wysiwyg > .vditor-reset > h4:before,
+  .vditor-wysiwyg > .vditor-reset > h5:before,
+  .vditor-wysiwyg > .vditor-reset > h6:before {
+    content: none !important;
+  }
+
+  /*
+   * 줄 번호: 화면 번호 열(줄 높이를 화면 폭에서 잰 것) 대신 editor.js preparePrint 가 만든 사본을 찍는다.
+   * 줄마다 블록이고 번호가 그 줄에 붙어 있어, 종이 폭에서 긴 줄이 접혀도 번호가 그 줄 첫 화면줄에 남는다.
+   * 모양은 Vditor 번호 열과 같게 (코드 padding-left 4em · 번호 칸 3em · 오른쪽 1em 띄움 · 오른쪽 정렬).
+   */
+  code.has-print-copy {
+    display: none !important;
+  }
+  code.print-copy {
+    display: block !important;
+    position: relative;
+    padding-left: 4em !important;
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere;
+    counter-reset: print-line;
+  }
+  code.print-copy > .print-line {
+    display: block;
+    position: relative;
+    min-height: 1lh;  /* 빈 줄도 한 줄 높이 */
+    counter-increment: print-line;
+  }
+  code.print-copy > .print-line::before {
+    content: counter(print-line);
+    position: absolute;
+    left: -4em;
+    width: 3em;
+    padding-right: 1em;
+    box-sizing: border-box;
+    text-align: right;
+    color: rgba(158, 150, 150, 0.38);
+  }
+  body.code-only code.print-copy > .print-line::before {
+    color: #6e7781;
+  }
+  body.dark.code-only code.print-copy > .print-line::before {
+    color: #8b949e;
+  }
+}
+
+/* 인쇄용 줄 번호 사본은 화면에 보이지 않는다 (인쇄 중에만 잠깐 있다 — editor.js preparePrint · finishPrint). */
+code.print-copy {
+  display: none;
+}

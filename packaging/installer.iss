@@ -9,7 +9,7 @@
 
 #define AppName        "AI_docs reader"
 #define AppFileName    "ai-docs-reader"
-#define AppVersion     "1.4.0"
+#define AppVersion     "1.4.1"
 #define AppPublisher   "EaglingSun"
 #define AppExeName     "ai-docs-reader.exe"
 ; Same AppId as md-reader v1.x — a new AppId would install side by side instead of upgrading.

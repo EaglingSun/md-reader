@@ -76,7 +76,7 @@ def test_file_names_use_ai_docs_reader():
 
 
 def test_version_is_one_place_in_app_and_matches_installer():
-    assert main.APP_VERSION == "1.4.0"
+    assert main.APP_VERSION == "1.4.1"
     assert iss_define("AppVersion") == main.APP_VERSION
     assert "v1.3.1" not in MAIN_SRC  # show_about 이 상수를 쓴다
 

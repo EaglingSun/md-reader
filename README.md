@@ -101,6 +101,7 @@ python packaging\fetch_vditor.py   # Vditor 를 app\web\vendor 에 받기 (판 �
 ```powershell
 python -m pytest tests -q                                          # 단위 · 정적 검사
 python tests\manual\check_code_view.py out samples\sample.c samples\sample.py samples\sample.patch   # 렌더 실측(창이 뜬다)
+python tests\manual\check_pdf_export.py out                        # PDF 내보내기 실측 — 문서 끝까지 들어가는지(창이 뜬다 · PyMuPDF 필요)
 ```
 
 ### 인스톨러 빌드

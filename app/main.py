@@ -34,7 +34,7 @@ def _fit_to_screen(avail: QRect, width: int = 1600, height: int = 1000) -> QRect
 
 # 보이는 이름 · 버전 — packaging/installer.iss 의 AppName · AppVersion 과 같아야 한다(tests/test_packaging.py).
 APP_NAME = "AI_docs reader"
-APP_VERSION = "1.4.0"
+APP_VERSION = "1.4.1"
 REPO_URL = "https://github.com/EaglingSun/ai-docs-reader"
 
 # QSettings 키 — 바꾸면 사용자의 최근 파일 · 폴더 · 다크 모드 설정이 비워진다. 이름이 바뀌어도 그대로 둔다.

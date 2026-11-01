@@ -40,6 +40,7 @@ class MarkdownEditor(QWebEngineView):
         channel = QWebChannel(self.page())
         channel.registerObject("bridge", self.bridge)
         self.page().setWebChannel(channel)
+        self.page().pdfPrintingFinished.connect(self._finish_print)
 
         html_path = _resource_path("web/editor.html")
         self.load(QUrl.fromLocalFile(str(html_path.resolve())))
@@ -63,4 +64,19 @@ class MarkdownEditor(QWebEngineView):
         self.bridge.requestExportHTML.emit()
 
     def export_pdf(self, path: str) -> None:
-        self.page().printToPdf(path)
+        """인쇄용 줄 번호 사본을 만든 뒤(editor.js preparePrint) 인쇄하고, 끝나면 지운다(finishPrint).
+
+        순서를 여기서 잡는 이유: beforeprint 에서 바꾼 DOM 은 printToPdf 결과에 들어가지 않는다(2026-11-01 실측).
+        """
+        page = self.page()
+
+        def print_now(prepared) -> None:
+            if not isinstance(prepared, (int, float)):
+                # 사본을 못 만들었어도 PDF 는 낸다(본문은 다 들어간다) — 줄 번호만 화면 기준이 된다. 숨기지 않고 알린다.
+                print(f"export_pdf: preparePrint 실패 ({prepared!r}) — 줄 번호 사본 없이 인쇄", file=sys.stderr)
+            page.printToPdf(path)
+
+        page.runJavaScript("preparePrint()", print_now)
+
+    def _finish_print(self, _path: str, _ok: bool) -> None:
+        self.page().runJavaScript("finishPrint()")

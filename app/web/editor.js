@@ -104,6 +104,75 @@ function exportHtml() {
   }
 }
 
+// PDF 내보내기용 줄 번호. Vditor 는 번호 열을 코드 글줄과 따로 그리고, 줄바꿈(pre-wrap)이면 화면에서 잰 줄 높이를
+// px 로 박는다. 종이는 창보다 좁아 줄이 다르게 접히므로 그대로 인쇄하면 번호가 밀리고, 줄바꿈이 없는 마크다운
+// 코드 블록은 긴 줄이 종이 오른쪽에서 잘린다. 인쇄 직전에 "줄마다 블록 하나 + 그 줄에 붙은 번호" 사본을 원본 옆에
+// 넣어 인쇄 때만 보이게 하고(editor.css @media print), 끝나면 지운다. Python(editor.export_pdf)이 순서를 잡는다 —
+// beforeprint 에서 바꾼 DOM 은 printToPdf 결과에 들어가지 않는다(2026-11-01 실측).
+function splitCodeLines(code) {
+  const lines = [];
+  let line = document.createElement("span");
+  let open = [];  // 지금 줄에서 열려 있는 hljs span 사본들 (줄이 바뀌면 같은 깊이로 다시 연다)
+  const top = () => (open.length ? open[open.length - 1] : line);
+  const newLine = () => {
+    lines.push(line);
+    line = document.createElement("span");
+    const prev = open;
+    open = [];
+    let parent = line;
+    for (const el of prev) {
+      const c = el.cloneNode(false);
+      parent.appendChild(c);
+      open.push(c);
+      parent = c;
+    }
+  };
+  const walk = (node) => {
+    for (const ch of node.childNodes) {
+      if (ch.nodeType === Node.TEXT_NODE) {
+        ch.textContent.split("\n").forEach((part, i) => {
+          if (i > 0) newLine();
+          if (part) top().appendChild(document.createTextNode(part));
+        });
+      } else if (ch.nodeType === Node.ELEMENT_NODE) {
+        if (ch.classList.contains("vditor-linenumber__rows") || ch.classList.contains("vditor-linenumber__temp")) continue;
+        const c = ch.cloneNode(false);
+        top().appendChild(c);
+        open.push(c);
+        walk(ch);
+        open.pop();
+      }
+    }
+  };
+  walk(code);
+  lines.push(line);
+  if (lines.length > 1 && lines[lines.length - 1].textContent === "") lines.pop();  // 끝 개행 (Vditor 와 같은 규칙)
+  return lines;
+}
+
+function preparePrint() {
+  finishPrint();
+  let n = 0;
+  document.querySelectorAll("#vditor code.vditor-linenumber").forEach((code) => {
+    if (code.offsetParent === null) return;  // 접힌 원문 상자 등 안 보이는 것
+    const copy = document.createElement("code");
+    copy.className = code.className.replace(/\bvditor-linenumber\b/, "").trim() + " print-copy";
+    for (const ln of splitCodeLines(code)) {
+      ln.className = "print-line";
+      copy.appendChild(ln);
+    }
+    code.classList.add("has-print-copy");
+    code.insertAdjacentElement("afterend", copy);
+    n += 1;
+  });
+  return n;
+}
+
+function finishPrint() {
+  document.querySelectorAll("#vditor code.print-copy").forEach((c) => c.remove());
+  document.querySelectorAll("#vditor code.has-print-copy").forEach((c) => c.classList.remove("has-print-copy"));
+}
+
 window.addEventListener("DOMContentLoaded", () => {
   // QWebChannel 초기화. qt.webChannelTransport는 Python 측에서 주입.
   new QWebChannel(qt.webChannelTransport, function (channel) {
