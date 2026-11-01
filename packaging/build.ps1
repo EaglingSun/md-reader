@@ -1,6 +1,6 @@
-# md-reader release build pipeline.
-# 1) PyInstaller bundles app/ + Python runtime + PyQt6 -> dist/md-reader/
-# 2) Inno Setup wraps that into dist/installer/md-reader-setup-X.Y.Z.exe
+# AI_docs reader (formerly md-reader) release build pipeline.
+# 1) PyInstaller bundles app/ + Python runtime + PyQt6 -> dist/ai-docs-reader/
+# 2) Inno Setup wraps that into dist/installer/ai-docs-reader-setup-X.Y.Z.exe
 #
 # Usage (from project root or anywhere):
 #   powershell -ExecutionPolicy Bypass -File packaging\build.ps1
@@ -13,8 +13,10 @@
 $ErrorActionPreference = "Stop"
 $PackagingDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot  = Split-Path -Parent $PackagingDir
+# Space-free file name; must match installer.iss AppFileName and the spec's name=.
+$AppFileName  = "ai-docs-reader"
 
-Write-Host "=== md-reader build ===" -ForegroundColor Cyan
+Write-Host "=== $AppFileName build ===" -ForegroundColor Cyan
 Write-Host "Project: $ProjectRoot"
 Write-Host ""
 
@@ -41,19 +43,23 @@ $env:PYTHONPATH = ""
 if ($LASTEXITCODE -ne 0) { Write-Host "[X] pyinstaller install failed" -ForegroundColor Red; exit 1 }
 & $Py -m pip install --quiet -r (Join-Path $ProjectRoot "requirements.txt")
 if ($LASTEXITCODE -ne 0) { Write-Host "[X] requirements install failed" -ForegroundColor Red; exit 1 }
-Write-Host "[2/4] Build dependencies ready" -ForegroundColor Green
+# Vditor goes into the bundle (app/web/vendor) so the app renders without internet.
+# Pinned version + sha512; stops the build on mismatch.
+& $Py (Join-Path $PackagingDir "fetch_vditor.py")
+if ($LASTEXITCODE -ne 0) { Write-Host "[X] Vditor fetch/verify failed" -ForegroundColor Red; exit 1 }
+Write-Host "[2/4] Build dependencies ready (incl. bundled Vditor)" -ForegroundColor Green
 
 # --- 3. Run PyInstaller -------------------------------------------------
 $BuildDir   = Join-Path $ProjectRoot "build"
 $DistDir    = Join-Path $ProjectRoot "dist"
-$BundleDir  = Join-Path $DistDir "md-reader"
+$BundleDir  = Join-Path $DistDir $AppFileName
 # Clean only the regeneratable parts. Don't nuke dist/installer/ - the existing
 # .exe there might be locked by Defender/Explorer, and Inno Setup will overwrite
 # it at the end anyway.
 if (Test-Path $BuildDir)  { Remove-Item -Recurse -Force $BuildDir }
 if (Test-Path $BundleDir) { Remove-Item -Recurse -Force $BundleDir }
 
-$Spec = Join-Path $PackagingDir "md-reader.spec"
+$Spec = Join-Path $PackagingDir "$AppFileName.spec"
 Push-Location $ProjectRoot
 try {
     & $Py -m PyInstaller --noconfirm $Spec
@@ -62,7 +68,7 @@ try {
     Pop-Location
 }
 
-$Bundle = Join-Path $DistDir "md-reader\md-reader.exe"
+$Bundle = Join-Path $BundleDir "$AppFileName.exe"
 if (-not (Test-Path $Bundle)) { Write-Host "[X] Bundle not produced" -ForegroundColor Red; exit 1 }
 Write-Host "[3/4] PyInstaller bundle: $Bundle" -ForegroundColor Green
 
@@ -78,7 +84,7 @@ if (-not $Iscc) {
     Write-Host ""
     Write-Host "[!] Inno Setup 6 not found - skipping installer build." -ForegroundColor Yellow
     Write-Host "    Install from https://jrsoftware.org/isinfo.php and re-run."
-    Write-Host "    PyInstaller bundle remains at: $DistDir\md-reader\"
+    Write-Host "    PyInstaller bundle remains at: $BundleDir\"
     Write-Host "    (You can zip that folder for ad-hoc distribution.)"
     exit 0
 }
@@ -89,7 +95,7 @@ if ($LASTEXITCODE -ne 0) { Write-Host "[X] Inno Setup compile failed" -Foregroun
 
 Write-Host ""
 Write-Host "[4/4] Installer built." -ForegroundColor Green
-Get-ChildItem (Join-Path $DistDir "installer") -Filter "*.exe" | ForEach-Object {
+Get-ChildItem (Join-Path $DistDir "installer") -Filter "$AppFileName-setup-*.exe" | ForEach-Object {
     $sizeMB = [math]::Round($_.Length / 1MB, 1)
     Write-Host "  $($_.Name)  ($sizeMB MB)" -ForegroundColor White
 }

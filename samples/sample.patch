@@ -1,0 +1,17 @@
+diff --git a/compute.c b/compute.c
+index 3b18e51..a1c9f07 100644
+--- a/compute.c
++++ b/compute.c
+@@ -14,10 +14,10 @@ int sum_values(const int *values, int count)
+ int average(const int *values, int count)
+ {
+-    if (count <= 0) {
++    if (count < 0) {
+         return 0;
+     }
+     return sum_values(values, count) / count;
+ }
+
+ /* 0 으로 나누는 경로가 생겼다 — 리뷰가 이 줄을 짚어야 한다 */
+-int percent(int part, int whole)
++int percent(int part, int whole)   /* whole == 0 검사 그대로 */

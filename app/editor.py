@@ -23,8 +23,8 @@ class MarkdownEditor(QWebEngineView):
     """Vditor를 호스팅하는 웹뷰.
 
     web/editor.html을 file:// URL로 로드하고, QWebChannel로 Bridge를 노출한다.
-    file:// 페이지에서 CDN(https) 자원을 가져오려면
-    LocalContentCanAccessRemoteUrls를 명시적으로 켜야 한다 (기본 False).
+    Vditor 는 web/vendor/vditor (설치본 동봉)에서 file:// 로 읽는다.
+    LocalContentCanAccessRemoteUrls 는 문서 안의 원격 이미지(https)를 보여 주려고 켜 둔다 (기본 False).
     """
 
     def __init__(self) -> None:
@@ -44,9 +44,9 @@ class MarkdownEditor(QWebEngineView):
         html_path = _resource_path("web/editor.html")
         self.load(QUrl.fromLocalFile(str(html_path.resolve())))
 
-    def load_markdown(self, text: str) -> None:
+    def load_markdown(self, text: str, code_only: bool = False, read_only: bool = False) -> None:
         self.bridge.reset_content(text)
-        self.bridge.loadContent.emit(text)
+        self.bridge.loadContent.emit(text, code_only, read_only)
 
     def request_save(self) -> None:
         self.bridge.requestSave.emit()

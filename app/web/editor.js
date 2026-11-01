@@ -7,8 +7,22 @@ let bridge = null;
 let currentMode = "ir";        // ir | wysiwyg | sv
 let currentTheme = "classic";  // classic | dark
 let pendingContent = "";
+let readOnly = false;          // 코드 · 패치 파일 — Python 이 loadContent 로 알려 준다
 
-const VDITOR_CDN = "https://cdn.jsdelivr.net/npm/vditor@3.10.9";
+// Vditor 를 다시 만들면(테마 · 모드 전환) contenteditable 이 되살아나므로 매번 다시 건다.
+function applyReadOnly() {
+  if (!vditor) return;
+  if (readOnly) {
+    vditor.disabled();
+  } else {
+    vditor.enable();
+  }
+  document.body.classList.toggle("read-only", readOnly);
+}
+
+// Vditor 가 lute · hljs · mermaid · katex · i18n 등을 `${cdn}/dist/...` 에서 불러온다.
+// 설치본에 들어 있는 vendor/vditor 를 가리켜 인터넷 없이 그린다 (packaging/fetch_vditor.py).
+const VDITOR_CDN = new URL("vendor/vditor", document.baseURI).href;
 
 // Vditor는 본문 폭을 preview.maxWidth(기본 800px)로 묶고 남는 폭을 좌우 여백으로 쓴다.
 // 상한을 사실상 없애 본문이 창 폭을 따라가게 한다 (여백은 Vditor 최소값 35px).
@@ -57,6 +71,7 @@ function buildOptions(mode, theme, initialValue) {
       // mermaid/code 등 렌더 트리거
       Vditor.mermaidRender(document.getElementById("vditor"), VDITOR_CDN, currentTheme);
       Vditor.codeRender(document.getElementById("vditor"));
+      applyReadOnly();
       if (bridge && bridge.onEditorReady) {
         bridge.onEditorReady();
       }
@@ -94,14 +109,16 @@ window.addEventListener("DOMContentLoaded", () => {
   new QWebChannel(qt.webChannelTransport, function (channel) {
     bridge = channel.objects.bridge;
 
-    bridge.loadContent.connect(function (md) {
-      // Detect "document is exactly a single code fence" (YAML/JSON case).
-      // When true, body.code-only enables CSS that drops the code block's
-      // internal max-height so the outer editor scroll handles long content.
-      const codeOnly = /^\s*(`{3,})(yaml|yml|json|text)\s*\n[\s\S]*\n\1\s*$/.test(md);
-      document.body.classList.toggle("code-only", codeOnly);
+    bridge.loadContent.connect(function (md, codeOnly, isReadOnly) {
+      // codeOnly: the document is exactly one wrapped code fence (YAML/JSON/TXT/code).
+      // body.code-only enables CSS that drops the code block's internal
+      // max-height so the outer editor scroll handles long content.
+      // Python decides it from the file extension (single source: main.CODE_FENCE_LANGS).
+      document.body.classList.toggle("code-only", !!codeOnly);
+      readOnly = !!isReadOnly;
       if (vditor) {
         vditor.setValue(md);
+        applyReadOnly();
       } else {
         pendingContent = md;
       }

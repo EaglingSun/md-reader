@@ -32,6 +32,12 @@ def _fit_to_screen(avail: QRect, width: int = 1600, height: int = 1000) -> QRect
     r.moveCenter(avail.center())
     return r
 
+# 보이는 이름 · 버전 — packaging/installer.iss 의 AppName · AppVersion 과 같아야 한다(tests/test_packaging.py).
+APP_NAME = "AI_docs reader"
+APP_VERSION = "1.4.0"
+REPO_URL = "https://github.com/EaglingSun/ai-docs-reader"
+
+# QSettings 키 — 바꾸면 사용자의 최근 파일 · 폴더 · 다크 모드 설정이 비워진다. 이름이 바뀌어도 그대로 둔다.
 ORG = "EaglingSun"
 APP = "MdReader"
 MAX_RECENT = 10
@@ -39,22 +45,71 @@ MAX_RECENT = 10
 # Non-markdown extensions that we wrap as a fenced code block on load and
 # unwrap on save. Vditor's hljs handles the syntax highlighting; .txt is shown
 # verbatim instead of being interpreted as markdown.
-CODE_FENCE_LANGS = {
+EDITABLE_FENCE_LANGS = {
     ".yaml": "yaml",
     ".yml":  "yaml",
     ".json": "json",
     ".txt":  "text",
 }
 
-OPEN_FILTER = (
-    "Markdown / 데이터 (*.md *.markdown *.txt *.yaml *.yml *.json);;"
-    "Markdown (*.md *.markdown);;"
-    "텍스트 (*.txt);;"
-    "YAML (*.yaml *.yml);;"
-    "JSON (*.json);;"
-    "모든 파일 (*)"
-)
-FS_NAME_FILTERS = ["*.md", "*.markdown", "*.txt", "*.yaml", "*.yml", "*.json"]
+# Code / patch files: shown the same way but read-only — never written back, so a
+# wrap/unwrap round trip can't introduce a stray diff (trailing newline, CRLF, encoding).
+READ_ONLY_FENCE_LANGS = {
+    ".py":    "python",
+    ".c":     "c",
+    ".h":     "c",
+    ".patch": "diff",
+    ".diff":  "diff",
+    ".ps1":   "powershell",
+    ".sh":    "bash",
+    ".js":    "javascript",
+    ".toml":  "text",
+    ".ini":   "text",
+    ".log":   "text",
+}
+
+CODE_FENCE_LANGS = {**EDITABLE_FENCE_LANGS, **READ_ONLY_FENCE_LANGS}
+
+MARKDOWN_EXTS = (".md", ".markdown")
+_CODE_LINE_EXTS = (".py", ".c", ".h", ".patch", ".diff")
+_SCRIPT_LINE_EXTS = tuple(e for e in READ_ONLY_FENCE_LANGS if e not in _CODE_LINE_EXTS)
+
+
+def _globs(exts) -> str:
+    return " ".join(f"*{e}" for e in exts)
+
+
+OPEN_FILTER = ";;".join([
+    f"지원 형식 ({_globs(MARKDOWN_EXTS + tuple(CODE_FENCE_LANGS))})",
+    f"Markdown ({_globs(MARKDOWN_EXTS)})",
+    "텍스트 (*.txt)",
+    "YAML (*.yaml *.yml)",
+    "JSON (*.json)",
+    f"코드 ({_globs(_CODE_LINE_EXTS)})",
+    f"스크립트 · 설정 · 로그 ({_globs(_SCRIPT_LINE_EXTS)})",
+    "모든 파일 (*)",
+])
+FS_NAME_FILTERS = [f"*{e}" for e in MARKDOWN_EXTS + tuple(CODE_FENCE_LANGS)]
+
+
+def is_read_only(path: Path) -> bool:
+    return path.suffix.lower() in READ_ONLY_FENCE_LANGS
+
+
+def to_editor_text(raw: str, suffix: str) -> str:
+    """파일 원문을 편집기에 넣을 마크다운으로 바꾼다.
+
+    데이터 파일은 저장 때 _unwrap_code 로 원문이 그대로 돌아와야 하므로 본문을 손대지 않는다.
+    읽기 전용 코드 파일은 저장하지 않으므로 끝 개행 하나를 뗀다 — 떼지 않으면 펜스 안에
+    빈 줄이 하나 더 생겨 줄 번호가 파일 줄 수보다 하나 많아진다.
+    """
+    # Normalize line endings so the wrap/unwrap regex behaves predictably.
+    text = raw.replace("\r\n", "\n").replace("\r", "\n")
+    suffix = suffix.lower()
+    if suffix in READ_ONLY_FENCE_LANGS:
+        return _wrap_as_code(text.removesuffix("\n"), READ_ONLY_FENCE_LANGS[suffix])
+    lang = EDITABLE_FENCE_LANGS.get(suffix)
+    return _wrap_as_code(text, lang) if lang else text
 
 
 def _wrap_as_code(body: str, lang: str) -> str:
@@ -85,11 +140,12 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.settings = QSettings(ORG, APP)
         self.current_file: Path | None = None
+        self.read_only: bool = False
         self.dark_mode: bool = bool(self.settings.value("dark_mode", False, type=bool))
         self._pending_html_path: str | None = None
         self._pending_open: Path | None = None
 
-        self.setWindowTitle("md-reader")
+        self.setWindowTitle(APP_NAME)
         # 마우스가 있는 화면에 연다 (Windows 새 창 위치와 같은 기준).
         screen = QApplication.screenAt(QCursor.pos()) or QApplication.primaryScreen()
         self.setGeometry(_fit_to_screen(screen.availableGeometry()))
@@ -145,8 +201,10 @@ class MainWindow(QMainWindow):
         m_file.addAction(self._action("열기...", "Ctrl+O", self.open_file))
         m_file.addAction(self._action("폴더 열기...", "Ctrl+Shift+O", self.open_folder))
         m_file.addSeparator()
-        m_file.addAction(self._action("저장", "Ctrl+S", self.save_file))
-        m_file.addAction(self._action("다른 이름으로 저장...", "Ctrl+Shift+S", self.save_as))
+        self.action_save = self._action("저장", "Ctrl+S", self.save_file)
+        self.action_save_as = self._action("다른 이름으로 저장...", "Ctrl+Shift+S", self.save_as)
+        m_file.addAction(self.action_save)
+        m_file.addAction(self.action_save_as)
         m_file.addSeparator()
 
         self.recent_menu = m_file.addMenu("최근 파일")
@@ -181,6 +239,7 @@ class MainWindow(QMainWindow):
         if not self._confirm_discard():
             return
         self.current_file = None
+        self._set_read_only(False)
         self.editor.load_markdown("")
         self._refresh_title()
 
@@ -218,15 +277,13 @@ class MainWindow(QMainWindow):
         except UnicodeDecodeError:
             # Windows 예전 파일 fallback
             text = path.read_text(encoding="cp949")
-        # Normalize line endings so the wrap/unwrap regex behaves predictably.
-        text = text.replace("\r\n", "\n").replace("\r", "\n")
 
-        lang = CODE_FENCE_LANGS.get(path.suffix.lower())
-        if lang:
-            text = _wrap_as_code(text, lang)
+        code_only = path.suffix.lower() in CODE_FENCE_LANGS
+        read_only = is_read_only(path)
 
         self.current_file = path
-        self.editor.load_markdown(text)
+        self._set_read_only(read_only)
+        self.editor.load_markdown(to_editor_text(text, path.suffix), code_only=code_only, read_only=read_only)
         self._add_recent(path)
         self._reveal_in_tree(path)
         self.status.showMessage(f"{path} 열림", 4000)
@@ -248,14 +305,27 @@ class MainWindow(QMainWindow):
         self.tree.setCurrentIndex(index)
         self.tree.scrollTo(index)
 
+    def _set_read_only(self, read_only: bool) -> None:
+        """코드 파일이면 저장 경로를 모두 막는다 (메뉴 · Ctrl+S · Ctrl+Shift+S).
+
+        QAction 을 끄면 그 단축키도 함께 꺼진다.
+        """
+        self.read_only = read_only
+        self.action_save.setEnabled(not read_only)
+        self.action_save_as.setEnabled(not read_only)
+
     def save_file(self) -> None:
+        if self.read_only:
+            return
         if self.current_file is None:
             self.save_as()
             return
         self._write(self.current_file)
 
     def save_as(self) -> None:
-        start = str(self.current_file if self.current_file else Path.home() / "untitled.md")
+        if self.read_only:
+            return
+        start =str(self.current_file if self.current_file else Path.home() / "untitled.md")
         path, _ = QFileDialog.getSaveFileName(
             self, "다른 이름으로 저장", start,
             "Markdown (*.md);;텍스트 (*.txt);;YAML (*.yaml *.yml);;JSON (*.json);;모든 파일 (*)",
@@ -442,11 +512,15 @@ class MainWindow(QMainWindow):
 
     def _refresh_title(self) -> None:
         name = self.current_file.name if self.current_file else "Untitled"
+        if self.read_only:
+            self.setWindowTitle(f"{name} [읽기 전용] — {APP_NAME}")
+            return
         dirty = "● " if self.editor.bridge.is_dirty() else ""
-        self.setWindowTitle(f"{dirty}{name} — md-reader")
+        self.setWindowTitle(f"{dirty}{name} — {APP_NAME}")
 
     def _confirm_discard(self) -> bool:
-        if not self.editor.bridge.is_dirty():
+        # 읽기 전용 문서는 저장할 길이 없으므로 물을 것도 없다.
+        if self.read_only or not self.editor.bridge.is_dirty():
             return True
         r = QMessageBox.question(
             self,
@@ -470,20 +544,23 @@ class MainWindow(QMainWindow):
             e.ignore()
 
     def show_about(self) -> None:
+        editable = " / ".join(MARKDOWN_EXTS + tuple(EDITABLE_FENCE_LANGS))
+        read_only = " / ".join(READ_ONLY_FENCE_LANGS)
         QMessageBox.about(
             self,
-            "md-reader 정보",
-            "<h3>md-reader v1.3.1</h3>"
-            "<p>가벼운 Windows 마크다운 에디터<br>"
+            f"{APP_NAME} 정보",
+            f"<h3>{APP_NAME} v{APP_VERSION}</h3>"
+            "<p>AI 시대 문서 · 코드 읽기용 가벼운 Windows 뷰어 · 마크다운 에디터<br>"
             "PyQt6 + Vditor (IR mode)</p>"
             "<p style='color:#666;font-size:11px;'>"
-            "지원 형식: .md / .markdown / .txt / .yaml / .yml / .json"
+            f"편집: {editable}<br>"
+            f"읽기 전용(줄 번호): {read_only}"
             "</p>"
             "<hr>"
-            "<p>EaglingSun</p>"
+            "<p>EaglingSun · 옛 이름 md-reader</p>"
             "<p style='color:#666;font-size:11px;'>"
             "GPL-3.0 라이선스 · 어떠한 보증도 없음<br>"
-            "소스: https://github.com/EaglingSun/md-reader"
+            f"소스: {REPO_URL}"
             "</p>",
         )
 

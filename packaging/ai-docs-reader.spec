@@ -1,6 +1,6 @@
-# PyInstaller spec for md-reader.
-# Run from project root: pyinstaller packaging/md-reader.spec
-# Output: dist/md-reader/md-reader.exe (folder bundle, ~150 MB).
+# PyInstaller spec for AI_docs reader (formerly md-reader).
+# Run from project root: pyinstaller packaging/ai-docs-reader.spec
+# Output: dist/ai-docs-reader/ai-docs-reader.exe (folder bundle, ~150 MB).
 
 import os
 
@@ -40,13 +40,13 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="md-reader",
+    name="ai-docs-reader",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=False,
     console=False,        # GUI app - no console window flash
-    icon=ICON,            # md-reader/app/assets/icon.ico (multi-size)
+    icon=ICON,            # app/assets/icon.ico (multi-size)
     version=None,
 )
 
@@ -58,5 +58,5 @@ coll = COLLECT(
     strip=False,
     upx=False,
     upx_exclude=[],
-    name="md-reader",
+    name="ai-docs-reader",
 )

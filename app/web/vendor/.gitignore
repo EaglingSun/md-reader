@@ -1,0 +1,3 @@
+# packaging/fetch_vditor.py 가 채운다 (빌드 · 개발 실행 전). 저장소에는 넣지 않는다.
+*
+!.gitignore

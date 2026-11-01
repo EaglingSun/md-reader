@@ -2,15 +2,16 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>md-reader</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.css" />
+  <title>AI_docs reader</title>
+  <!-- Vditor 는 설치본에 들어 있다 (packaging/fetch_vditor.py) — 인터넷 없이 그린다. -->
+  <link rel="stylesheet" href="vendor/vditor/dist/index.css" />
   <link rel="stylesheet" href="editor.css" />
 </head>
 <body>
   <div id="vditor"></div>
 
   <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/vditor@3.10.9/dist/index.min.js"></script>
+  <script src="vendor/vditor/dist/index.min.js"></script>
   <script src="editor.js"></script>
 </body>
 </html>

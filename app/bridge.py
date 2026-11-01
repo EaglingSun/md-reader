@@ -8,7 +8,10 @@ class Bridge(QObject):
     Python에서 파일 로드 시 loadContent를 emit하면 JS가 setValue 한다.
     """
 
-    loadContent = pyqtSignal(str)
+    # (markdown, code_only, read_only)
+    #   code_only — 문서 전체가 감싼 코드 펜스 하나 (YAML/JSON/TXT/코드). 긴 코드 스크롤 · 줄바꿈 CSS 를 켠다.
+    #   read_only — 코드 · 패치 파일. Vditor 입력을 막는다 (테마 전환으로 다시 만들어도 유지).
+    loadContent = pyqtSignal(str, bool, bool)
     requestSave = pyqtSignal()
     requestExportHTML = pyqtSignal()
     requestExportPDF = pyqtSignal()
